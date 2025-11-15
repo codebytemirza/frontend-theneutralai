@@ -34,12 +34,9 @@ export default function ChatPage() {
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  
-  // ✅ Use ref to prevent multiple auth checks
   const hasCheckedAuth = useRef(false);
 
   useEffect(() => {
-    // ✅ Only check once
     if (hasCheckedAuth.current) return;
     hasCheckedAuth.current = true;
 
@@ -55,7 +52,7 @@ export default function ChatPage() {
     setUserId(email || "guest");
     setIsAuthenticated(true);
     setIsCheckingAuth(false);
-  }, []); // ✅ Empty dependency array
+  }, [router]);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -69,6 +66,7 @@ export default function ChatPage() {
     router.replace("/login");
   };
 
+  // ✅ FIXED: Properly handle streaming response
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() === "") return;
@@ -79,11 +77,12 @@ export default function ChatPage() {
       timestamp: new Date()
     };
     setMessages((prev) => [...prev, userMessage]);
+    const currentInput = input;
     setInput("");
     setIsAiTyping(true);
 
     try {
-      const response = await apiService.streamChat(input, userId);
+      const response = await apiService.streamChat(currentInput, userId);
 
       if (!response.body) {
         throw new Error("No response body");
@@ -91,7 +90,7 @@ export default function ChatPage() {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let aiMessageText = "";
+      let aiMessageAdded = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -102,25 +101,40 @@ export default function ChatPage() {
 
         for (const line of lines) {
           if (line.startsWith("data: ")) {
-            const data = JSON.parse(line.replace("data: ", ""));
-            if (data.type === "answer") {
-              aiMessageText += data.content;
-              setMessages((prev) => {
-                const last = prev[prev.length - 1];
-                if (last && last.sender === "ai") {
-                  return [...prev.slice(0, -1), { 
-                    text: aiMessageText, 
-                    sender: "ai",
-                    timestamp: last.timestamp 
-                  }];
-                } else {
-                  return [...prev, { 
-                    text: aiMessageText, 
-                    sender: "ai",
-                    timestamp: new Date()
-                  }];
-                }
-              });
+            try {
+              const data = JSON.parse(line.replace("data: ", ""));
+              
+              if (data.type === "status") {
+                // Optional: Handle status messages
+                console.log("Status:", data.message);
+              } else if (data.type === "answer") {
+                // ✅ The content is the FULL answer, not incremental
+                setMessages((prev) => {
+                  const last = prev[prev.length - 1];
+                  if (last && last.sender === "ai" && aiMessageAdded) {
+                    // Update existing AI message with full content
+                    return [...prev.slice(0, -1), { 
+                      text: data.content,  // ✅ Replace, don't concatenate
+                      sender: "ai",
+                      timestamp: last.timestamp 
+                    }];
+                  } else {
+                    // Add new AI message
+                    aiMessageAdded = true;
+                    return [...prev, { 
+                      text: data.content, 
+                      sender: "ai",
+                      timestamp: new Date()
+                    }];
+                  }
+                });
+              } else if (data.type === "complete") {
+                console.log("Chat completed with thread_id:", data.thread_id);
+              } else if (data.type === "error") {
+                throw new Error(data.message);
+              }
+            } catch (parseError) {
+              console.error("Failed to parse SSE data:", parseError);
             }
           }
         }
@@ -251,7 +265,6 @@ export default function ChatPage() {
                         const match = /language-(\w+)/.exec(className || '');
                         const codeString = String(children).replace(/\n$/, '');
                         
-                        // Check if it's inline code (no language match)
                         if (!match) {
                           return (
                             <code 
@@ -263,7 +276,6 @@ export default function ChatPage() {
                           );
                         }
                         
-                        // Block code with syntax highlighting
                         return (
                           <div className="relative group my-4 rounded-lg overflow-hidden border border-gray-300">
                             <div className="flex items-center justify-between bg-gray-100 px-4 py-2 border-b border-gray-300">
@@ -343,7 +355,7 @@ export default function ChatPage() {
   }
 
   if (!isAuthenticated) {
-    return null; // Will redirect
+    return null;
   }
 
   return (
