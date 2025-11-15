@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export', // <--- Add this for static export
+  // <--- Add this for static export
 
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
@@ -33,7 +33,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://66.102.139.243:5000/:path*', // points frontend API requests to your backend
+        destination: 'http://127.0.0.1:5000/:path*', // points frontend API requests to your backend
       },
     ];
   },
