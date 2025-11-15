@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // <--- Add this for static export
-
+  // No output specified - runs as server (not static export)
+  
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_ADMIN_EMAIL: process.env.NEXT_PUBLIC_ADMIN_EMAIL,
@@ -29,13 +29,46 @@ const nextConfig = {
     'theneutralai.com',
   ],
 
+  // Rewrites only for local development
+  // In production, Apache handles all proxying
   async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://127.0.0.1:5000/:path*', // points frontend API requests to your backend
-      },
-    ];
+    if (process.env.NODE_ENV === 'development') {
+      return [
+        {
+          source: '/api/:path*',
+          destination: 'http://127.0.0.1:5000/:path*',
+        },
+        {
+          source: '/auth/:path*',
+          destination: 'http://127.0.0.1:5000/auth/:path*',
+        },
+        {
+          source: '/admin/:path*',
+          destination: 'http://127.0.0.1:5000/admin/:path*',
+        },
+        {
+          source: '/health',
+          destination: 'http://127.0.0.1:5000/health',
+        },
+        {
+          source: '/upload-:path*',
+          destination: 'http://127.0.0.1:5000/upload-:path*',
+        },
+        {
+          source: '/stream-text-to-speech',
+          destination: 'http://127.0.0.1:5000/stream-text-to-speech',
+        },
+        {
+          source: '/getPrompt',
+          destination: 'http://127.0.0.1:5000/getPrompt',
+        },
+        {
+          source: '/chngPrompt',
+          destination: 'http://127.0.0.1:5000/chngPrompt',
+        },
+      ];
+    }
+    return [];
   },
 }
 
